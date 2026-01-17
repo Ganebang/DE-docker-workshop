@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database Service
+  database:
+    image: postgres:18
+    container_name: postgres-db
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: ny_taxi
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./ny_taxi_postgres_data:/var/lib/postgresql/data/backup
+    ports:
+      - "5432:5432"
+    networks:
+      - taxi-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    labels:
+      - "com.example.description=NYC Taxi PostgreSQL Database"
+      - "com.example.version=18"
+
+  # Pipeline Service
+  pipeline:
+    build:
+      context: ./pipeline
+      dockerfile: Dockerfile
+    container_name: pipeline
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_NAME: ny_taxi
+    volumes:
+      - ./pipeline:/code
+      - ./pipeline/logs:/code/logs
+    networks:
+      - taxi-network
+    # Override entrypoint to run pipeline with parameters
+    # Usage: docker-compose run pipeline uv run simple_data_ingestion.py --year 2021 --month 1
+    stdin_open: true
+    tty: true
+    restart: on-failure:3
+    labels:
+      - "com.example.description=NYC Taxi Data Pipeline"
+      - "com.example.version=1.0"
+
+  # Optional: pgAdmin for database management UI
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    networks:
+      - taxi-network
+    depends_on:
+      - database
+    profiles:
+      - admin
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  taxi-network:
+    driver: bridge
