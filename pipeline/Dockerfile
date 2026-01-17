@@ -19,6 +19,6 @@ RUN uv sync --locked
 
 
 # Copy the pipeline script into the container
-COPY pipeline.py .
+COPY simple_data_ingestion.py .
 # Set the entry point for the container
-ENTRYPOINT ["python", "pipeline.py"]
+ENTRYPOINT ["python", "simple_data_ingestion.py"]
